@@ -300,7 +300,7 @@ export default function App() {
               {/* Header */}
               <div className="header">
                 <div className="eyebrow">Bible study companion</div>
-                <h1 className="header-title">The <em>Word</em></h1>
+                <h1 className="header-title">The <em>Principles</em></h1>
                 <p className="header-quote">Open alongside your Bible. Find principles as you read.</p>
               </div>
 
