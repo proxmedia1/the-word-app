@@ -203,7 +203,23 @@ export default function App() {
   const [activePrinciple, setActivePrinciple] = useState(null);
   const [search, setSearch]     = useState("");
   const [expandedTags, setExpandedTags] = useState({});
+  const [bookmarks, setBookmarks] = useState({});
+  const [notes, setNotes] = useState({});
+  const [noteInput, setNoteInput] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
   const topRef = useRef(null);
+
+  // Load persisted state on mount
+  useEffect(() => {
+    try {
+      const b = localStorage.getItem('word_bookmarks');
+      if (b) setBookmarks(JSON.parse(b));
+      const n = localStorage.getItem('word_notes');
+      if (n) setNotes(JSON.parse(n));
+      const lb = localStorage.getItem('word_last_book');
+      if (lb) setActiveBook(lb);
+    } catch(e) {}
+  }, []);
 
   // Build deduplicated master verse list
   const allVerses = useMemo(() => {
@@ -254,6 +270,7 @@ export default function App() {
 
   function openBook(book) {
     setActiveBook(book);
+    localStorage.setItem('word_last_book', book);
     setActivePrinciple(null);
     setSearch("");
     setExpandedTags({});
@@ -280,11 +297,36 @@ export default function App() {
     setExpandedTags(p => ({ ...p, [ref]: !p[ref] }));
   }
 
+  function toggleBookmark(v) {
+    setBookmarks(prev => {
+      const updated = { ...prev };
+      if (updated[v.ref]) { delete updated[v.ref]; } else { updated[v.ref] = true; }
+      localStorage.setItem('word_bookmarks', JSON.stringify(updated));
+      return updated;
+    });
+  }
+
+  function saveNote(ref) {
+    const trimmed = noteDraft.trim();
+    setNotes(prev => {
+      const updated = { ...prev };
+      if (trimmed) { updated[ref] = trimmed; } else { delete updated[ref]; }
+      localStorage.setItem('word_notes', JSON.stringify(updated));
+      return updated;
+    });
+    setNoteInput(null);
+    setNoteDraft('');
+  }
+
   const verseCountByBook = useMemo(() => {
     const m = {};
     allVerses.forEach(v => { const b = bk(v.ref); m[b] = (m[b] || 0) + 1; });
     return m;
   }, [allVerses]);
+
+  const bookmarkedVerses = useMemo(() => {
+    return allVerses.filter(v => bookmarks[v.ref]);
+  }, [allVerses, bookmarks]);
 
   return (
     <>
@@ -297,6 +339,17 @@ export default function App() {
           {/* ══════════ HOME ══════════ */}
           {view === "home" && (
             <div className="stagger">
+              {/* Resume reading card */}
+              {activeBook && (
+                <div className="glass resume-card" onClick={()=>openBook(activeBook)}>
+                  <div>
+                    <div className="eyebrow" style={{color:"var(--prox-gold)",marginBottom:3}}>Continue reading</div>
+                    <div className="resume-book">{activeBook}</div>
+                  </div>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--prox-gold)" strokeWidth="2.2" strokeLinecap="round"><polyline points="9,6 15,12 9,18"/></svg>
+                </div>
+              )}
+
               {/* Header */}
               <div className="header">
                 <div className="eyebrow">Bible study companion</div>
@@ -427,7 +480,33 @@ export default function App() {
               {readingVerses.length === 0
                 ? <EmptyState/>
                 : readingVerses.map((v,i) => (
-                    <ReadingCard key={v.ref+i} v={v} expanded={!!expandedTags[v.ref]} onToggle={()=>toggleTags(v.ref)}/>
+                    <ReadingCard key={v.ref+i} v={v} expanded={!!expandedTags[v.ref]} onToggle={()=>toggleTags(v.ref)}
+                      isBookmarked={!!bookmarks[v.ref]} onBookmark={()=>toggleBookmark(v)}
+                      note={notes[v.ref]} onNote={()=>{ setNoteInput(v.ref); setNoteDraft(notes[v.ref]||''); }}/>
+                  ))
+              }
+            </div>
+          )}
+
+          {/* ══════════ BOOKMARKS VIEW ══════════ */}
+          {view === "bookmarks" && (
+            <div className="stagger">
+              <div className="header">
+                <button className="back-btn" onClick={goHome}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><polyline points="15,6 9,12 15,18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                  Home
+                </button>
+                <h1 className="header-title" style={{fontSize:38}}>Saved</h1>
+                <p className="header-quote">{bookmarkedVerses.length} bookmark{bookmarkedVerses.length!==1?"s":""}</p>
+              </div>
+              {bookmarkedVerses.length === 0
+                ? <div className="glass" style={{textAlign:"center",padding:"40px 20px",marginTop:8}}>
+                    <p style={{color:"var(--text-3)",fontSize:14,fontFamily:"var(--font-display)",fontStyle:"italic"}}>No bookmarks yet. Tap the bookmark icon on any verse.</p>
+                  </div>
+                : bookmarkedVerses.map((v,i) => (
+                    <ReadingCard key={v.ref+i} v={v} expanded={!!expandedTags[v.ref]} onToggle={()=>toggleTags(v.ref)}
+                      isBookmarked={!!bookmarks[v.ref]} onBookmark={()=>toggleBookmark(v)}
+                      note={notes[v.ref]} onNote={()=>{ setNoteInput(v.ref); setNoteDraft(notes[v.ref]||''); }}/>
                   ))
               }
             </div>
@@ -466,6 +545,28 @@ export default function App() {
 
         </div>
 
+        {/* ══════ NOTE MODAL ══════ */}
+        {noteInput !== null && (
+          <>
+            <div className="modal-backdrop" onClick={()=>{ setNoteInput(null); setNoteDraft(''); }}/>
+            <div className="modal-sheet">
+              <div className="eyebrow" style={{color:"var(--prox-gold)",marginBottom:10}}>{noteInput}</div>
+              <textarea
+                className="note-textarea"
+                placeholder="Write a note…"
+                value={noteDraft}
+                onChange={e=>setNoteDraft(e.target.value)}
+                autoFocus
+                rows={4}
+              />
+              <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"flex-end"}}>
+                <button className="ghost-btn" onClick={()=>{ setNoteInput(null); setNoteDraft(''); }}>Cancel</button>
+                <button className="primary-btn" onClick={()=>saveNote(noteInput)}>Save</button>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* ══════ BOTTOM NAV ══════ */}
         <nav className="nav">
           <button className={`nav-btn${view==="home"?" nav-active":""}`} onClick={goHome}>
@@ -480,23 +581,48 @@ export default function App() {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
             <span>Principle</span>
           </button>
+          <button className={`nav-btn${view==="bookmarks"?" nav-active":""}`} onClick={()=>setView("bookmarks")}>
+            {view==="bookmarks"
+              ? <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--prox-gold)" stroke="var(--prox-gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            }
+            <span>{bookmarkedVerses.length > 0 ? `Saved (${bookmarkedVerses.length})` : "Saved"}</span>
+          </button>
         </nav>
       </div>
     </>
   );
 }
 
-function ReadingCard({ v, expanded, onToggle }) {
+function ReadingCard({ v, expanded, onToggle, isBookmarked, onBookmark, note, onNote }) {
   return (
     <div className="glass rcard">
       <div className="rcard-ref-row">
         <span className="rcard-ref">{v.ref}</span>
-        <button className="tags-toggle" onClick={onToggle}>
-          {expanded ? "hide" : `${v.cats.length} tag${v.cats.length!==1?"s":""}`}
-          <svg width="11" height="11" viewBox="0 0 24 24" style={{transform:expanded?"rotate(180deg)":"none",transition:"transform 0.2s",marginLeft:3}}><polyline points="6,9 12,15 18,9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        </button>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <button className="tags-toggle" onClick={onNote} title="Add note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={note ? "var(--prox-blue)" : "var(--text-3)"}
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+            </svg>
+          </button>
+          <button className="tags-toggle" onClick={onBookmark} title="Bookmark">
+            {isBookmarked
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--prox-gold)" stroke="var(--prox-gold)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            }
+          </button>
+          <button className="tags-toggle" onClick={onToggle}>
+            {expanded ? "hide" : `${v.cats.length} tag${v.cats.length!==1?"s":""}`}
+            <svg width="11" height="11" viewBox="0 0 24 24" style={{transform:expanded?"rotate(180deg)":"none",transition:"transform 0.2s",marginLeft:3}}><polyline points="6,9 12,15 18,9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          </button>
+        </div>
       </div>
       <p className="rcard-text">{v.text}</p>
+      {note && (
+        <div className="note-chip" onClick={onNote}>{note}</div>
+      )}
       {expanded && (
         <div className="rcard-tags">
           {v.cats.map(c=>(
@@ -659,4 +785,26 @@ button{cursor:pointer;font-family:var(--font-body);border:none;background:none;c
 .stagger>*:nth-child(5){animation-delay:0.28s;}
 .stagger>*:nth-child(6){animation-delay:0.34s;}
 .stagger>*:nth-child(n+7){animation-delay:0.38s;}
+
+/* ── New: notes, modal, bookmarks, resume ── */
+.note-chip{margin-top:10px;padding:8px 12px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--prox-blue) 12%,transparent);color:var(--prox-blue);font-size:13px;font-family:var(--font-display);font-style:italic;line-height:1.5;cursor:pointer;border:1px solid color-mix(in srgb,var(--prox-blue) 25%,transparent);}
+.note-chip:hover{background:color-mix(in srgb,var(--prox-blue) 18%,transparent);}
+
+.modal-backdrop{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+
+.modal-sheet{position:fixed;bottom:0;left:0;right:0;z-index:201;background:var(--bg-1);border-top:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));animation:slideUp 0.28s var(--ease-spring);}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+
+.note-textarea{width:100%;background:var(--surface-0);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;font-family:var(--font-display);font-style:italic;font-size:15px;color:var(--text-1);line-height:1.6;resize:none;-webkit-appearance:none;}
+.note-textarea:focus{border-color:var(--prox-blue);outline:none;}
+.note-textarea::placeholder{color:var(--text-3);opacity:0.7;}
+
+.primary-btn{background:var(--prox-gold);color:#0a0d14;font-weight:700;font-size:13px;padding:10px 22px;border-radius:var(--r-pill);letter-spacing:0.2px;min-height:40px;}
+.primary-btn:hover{opacity:0.88;}
+
+.ghost-btn{background:transparent;color:var(--text-3);font-weight:600;font-size:13px;padding:10px 18px;border-radius:var(--r-pill);border:1px solid var(--border);letter-spacing:0.2px;min-height:40px;}
+.ghost-btn:hover{color:var(--text-1);border-color:var(--border);}
+
+.resume-card{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;border-left:2px solid var(--prox-gold);}
+.resume-book{font-size:17px;font-weight:700;color:var(--text-1);letter-spacing:-0.02em;margin-top:2px;}
 `;
