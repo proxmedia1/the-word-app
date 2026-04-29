@@ -207,6 +207,7 @@ export default function App() {
   const [notes, setNotes] = useState({});
   const [noteInput, setNoteInput] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [lastBook, setLastBook] = useState(null);
   const topRef = useRef(null);
 
   // Load persisted state on mount
@@ -217,7 +218,7 @@ export default function App() {
       const n = localStorage.getItem('word_notes');
       if (n) setNotes(JSON.parse(n));
       const lb = localStorage.getItem('word_last_book');
-      if (lb) setActiveBook(lb);
+      if (lb) { setActiveBook(lb); setLastBook(lb); }
     } catch(e) {}
   }, []);
 
@@ -270,6 +271,7 @@ export default function App() {
 
   function openBook(book) {
     setActiveBook(book);
+    setLastBook(book);
     localStorage.setItem('word_last_book', book);
     setActivePrinciple(null);
     setSearch("");
@@ -340,11 +342,11 @@ export default function App() {
           {view === "home" && (
             <div className="stagger">
               {/* Resume reading card */}
-              {activeBook && (
-                <div className="glass resume-card" onClick={()=>openBook(activeBook)}>
+              {lastBook && (
+                <div className="glass resume-card" onClick={()=>openBook(lastBook)}>
                   <div>
                     <div className="eyebrow" style={{color:"var(--prox-gold)",marginBottom:3}}>Continue reading</div>
-                    <div className="resume-book">{activeBook}</div>
+                    <div className="resume-book">{lastBook}</div>
                   </div>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--prox-gold)" strokeWidth="2.2" strokeLinecap="round"><polyline points="9,6 15,12 9,18"/></svg>
                 </div>
