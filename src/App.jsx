@@ -681,7 +681,7 @@ const CSS = `
   --r-lg:22px;--r-md:16px;--r-sm:12px;--r-pill:999px;
   --ease-spring:cubic-bezier(0.34,1.56,0.64,1);--ease-smooth:cubic-bezier(0.25,0.46,0.45,0.94);
 }
-html,body{height:100%;overflow-x:hidden;}
+html,body{overflow-x:hidden;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 input:focus,button:focus{outline:none;}
 input::placeholder{color:var(--text-3);opacity:0.6;}
